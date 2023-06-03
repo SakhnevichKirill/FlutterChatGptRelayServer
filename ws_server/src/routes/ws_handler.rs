@@ -1,11 +1,17 @@
-use std::net::SocketAddr;
-
 use axum::{
-    extract::{connect_info::ConnectInfo, ws::WebSocket, WebSocketUpgrade},
+    extract::{
+        connect_info::ConnectInfo,
+        ws::{Message, WebSocket},
+        WebSocketUpgrade,
+    },
     headers::UserAgent,
     response::IntoResponse,
     TypedHeader,
 };
+use futures_util::{stream::SplitSink, SinkExt, StreamExt};
+use std::net::SocketAddr;
+
+use crate::models::UserRequest;
 
 // This function gives a handshake to the client that wants to open
 // a websocket connection.
@@ -29,6 +35,40 @@ pub async fn ws_handler(
 } // end fn ws_handler()
 
 // This function works with already established websocket connections.
-async fn socket_handler(mut _socket: WebSocket, addr: SocketAddr) {
+async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
     println!("A user with IP: {} is connected to a websocket", addr.ip());
+
+    // Split receiver and producer.
+    let (mut sender, mut receiver) = socket.split();
+
+    // A vector of tasks for getting a response from ChatGPT.
+    let mut _tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+
+    // Await requests from the user.
+    while let Some(Ok(msg)) = receiver.next().await {
+        // Check what type the message is.
+        match msg {
+            Message::Text(msg) => {
+                // This is a text request to ChatGPT.
+
+                // Deserialize the request.
+                let UserRequest { message } =
+                    serde_json::from_str(&msg).expect("Failed to convert the passed json");
+
+                // Spawn a task that deals with this request.
+                task_handler(message, &mut sender).await;
+            } // end Message::Text()
+            // TODO: Develop a tool for dealing with other types of requests.
+            _ => (),
+        } // end match
+    } // end while
 } // end fn socket_handler()
+
+// This function deals with the request for ChatGPT that require
+// a text answer.
+async fn task_handler(msg: String, sender: &mut SplitSink<WebSocket, Message>) {
+    sender
+        .send(Message::Text(msg))
+        .await
+        .expect("Failed to send a message to the client");
+} // end fn task_handler()

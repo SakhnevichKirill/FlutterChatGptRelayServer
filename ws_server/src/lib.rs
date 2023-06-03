@@ -1,3 +1,4 @@
+pub mod models;
 mod routes;
 
 use std::net::SocketAddr;

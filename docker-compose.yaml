@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+
+  rust-app:
+    build:
+      context: .
+      dockerfile: Docker/ws_server.dockerfile
+    ports:
+      - 8080:8080
