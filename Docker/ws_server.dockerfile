@@ -8,10 +8,10 @@ WORKDIR /ws_server
 COPY ./ws_server/ ./
 
 # Build the application
-RUN cargo build --release
+RUN cargo build
 
 # Expose the service to a specific port
 EXPOSE 8080
 
 # Set the command to run the application
-CMD ["cargo", "run", "--release"]
+CMD ["cargo", "run", "--bin", "ws_server"]

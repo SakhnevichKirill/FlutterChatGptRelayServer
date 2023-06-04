@@ -24,6 +24,8 @@ async fn main() {
     // Split the stream into sender and receiver.
     let (mut sender, mut receiver) = ws_stream.split();
 
+    let history: Vec<ChatMessage> = Vec::new();
+
     // Send multiple messages to the server.
     sender
         .send(Message::Text(

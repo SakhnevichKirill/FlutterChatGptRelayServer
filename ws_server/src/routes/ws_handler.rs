@@ -12,6 +12,7 @@ use axum::{
 use chatgpt::{prelude::*, types::Role, Result};
 use chrono::Local;
 use std::io::stdout;
+use std::io::Write;
 
 use dotenvy::dotenv;
 use futures_util::{stream::SplitSink, SinkExt, Stream, StreamExt};
@@ -85,7 +86,8 @@ async fn task_handler(
 ) {
     let mut stream = match get_answer_stream(new_message.clone(), history).await {
         Ok(stream) => stream,
-        Err(_) => {
+        Err(err) => {
+            println!("Error with stream establishing: {}", err);
             // TODO: Inform the client that an error occurred.
             return;
         } // end Err()
@@ -144,7 +146,7 @@ async fn get_answer_stream(
     // Acquiring a streamed response
     // Note, that the `futures_util` crate is required for most
     // stream related utility methods
-    let stream = conversation.send_message_streaming(message).await?;
+    let mut stream = conversation.send_message_streaming(message).await?;
     println!("Stream with ChatGPT is established successfully");
 
     // Iterating over a stream and collecting the results into a vector
@@ -167,7 +169,7 @@ async fn get_answer_stream(
     //         other => output.push(other),
     //     }
     // }
-    // // Parsing ChatMessage from the response chunks and saving it to the conversation history
+    // Parsing ChatMessage from the response chunks and saving it to the conversation history
     // output
     Ok(stream)
 }
