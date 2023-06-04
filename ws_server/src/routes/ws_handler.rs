@@ -58,6 +58,9 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
             Message::Text(msg) => {
                 // This is a text request to ChatGPT.
 
+                // Print out the user's request.
+                println!("Got request: {}", msg);
+
                 // Deserialize the request.
                 let ClientReq {
                     new_message,
@@ -65,7 +68,7 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
                 } = serde_json::from_str(&msg).expect("Failed to convert the passed json");
 
                 // Spawn a task that deals with this request.
-                task_handler(new_message, history, &mut sender).await;
+                task_handler(new_message.content, history, &mut sender).await;
             } // end Message::Text()
             // TODO: Develop a tool for dealing with other types of requests.
             _ => (),
@@ -89,11 +92,13 @@ async fn task_handler(
     }; // end let stream.
 
     while let Some(chunk) = stream.next().await {
+        println!("Got a chunk from ChatGPT");
         match chunk {
             ResponseChunk::Content {
                 delta,
                 response_index,
             } => {
+                println!("{}", delta);
                 // Send a chunk to the client.
                 sender
                     .send(Message::Text(delta))
@@ -129,6 +134,7 @@ async fn get_answer_stream(
 
     // Creating a client
     let key = env::var("OAI_TOKEN").unwrap();
+    println!("ChatGPT key is imported");
     let client = ChatGPT::new(key)?;
     let mut conversation = client.new_conversation();
     if !messages.is_empty() {
@@ -139,6 +145,7 @@ async fn get_answer_stream(
     // Note, that the `futures_util` crate is required for most
     // stream related utility methods
     let stream = conversation.send_message_streaming(message).await?;
+    println!("Stream with ChatGPT is established successfully");
 
     // Iterating over a stream and collecting the results into a vector
     // let mut output: Vec<ResponseChunk> = Vec::new();
