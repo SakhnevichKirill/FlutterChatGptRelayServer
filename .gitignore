@@ -1,2 +1,5 @@
 # Target folder for Rust.
 target/
+
+# Ignore environmental variables.
+.env
