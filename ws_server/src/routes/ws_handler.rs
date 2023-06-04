@@ -11,8 +11,6 @@ use axum::{
 
 use chatgpt::{prelude::*, types::Role, Result};
 use chrono::Local;
-use std::io::stdout;
-use std::io::Write;
 
 use dotenvy::dotenv;
 use futures_util::{stream::SplitSink, SinkExt, Stream, StreamExt};
@@ -48,9 +46,6 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
 
     // Split receiver and producer.
     let (mut sender, mut receiver) = socket.split();
-
-    // Current task.
-    let mut cur_task: Option<tokio::task::JoinHandle<()>> = None;
 
     // Await requests from the user.
     while let Some(Ok(msg)) = receiver.next().await {
@@ -98,7 +93,7 @@ async fn task_handler(
         match chunk {
             ResponseChunk::Content {
                 delta,
-                response_index,
+                response_index: _,
             } => {
                 println!("{}", delta);
                 // Send a chunk to the client.
@@ -106,20 +101,25 @@ async fn task_handler(
                     .send(Message::Text(delta))
                     .await
                     .expect("Failed to send a message to the client");
-            }
-            ResponseChunk::CloseResponse { response_index } => {
+            } // end ResponseChunk::Content
+
+            ResponseChunk::CloseResponse { response_index: _ } => {
                 // Inform a client that message sending is finished.
                 sender
                     .send(Message::Close(None))
                     .await
                     .expect("Failed to send a message to the client");
-            }
+            } // end ResponseChunk::CloseResponse
+
             other => {
                 println!("{:#?}", other);
-            }
-        }
-    }
+            } // end other
+        } // end match
+    } // end while let
 } // end fn task_handler()
+
+// This function prompts ChatGPT and returns a stream,
+// which it is possible to read data by chunks from.
 async fn get_answer_stream(
     message: String,
     mut messages: Vec<ChatMessage>,
@@ -129,18 +129,17 @@ async fn get_answer_stream(
     // let mut messages: Vec<ChatMessage> = serde_json::from_str(json_conversation).unwrap();
 
     //remove log
-    if !messages.is_empty() {
-        messages.remove(0);
-        let new_message = ChatMessage {
-            role: Role::System,
-            content: format!(
-                "You are ChatGPT, an AI model developed by OpenAI.\
-                Answer as concisely as possible. Today is: {0}",
-                Local::now().format("%d/%m/%Y %H:%M")
-            ),
-        };
-        messages.insert(0, new_message);
-    }
+    messages.remove(0);
+    let new_message = ChatMessage {
+        role: Role::System,
+        content: format!(
+            "I want you to act as Spongebob’s Magic Conch Shell. \
+            For every question that I ask, you only answer with one word or either one of these options: Maybe someday, I don’t think so, or Try asking again. \
+            Don’t give any explanation for your answer. My first question is: “Shall I go to fish jellyfish today?” Today is: {0}",
+            Local::now().format("%d/%m/%Y %H:%M")
+        ),
+    };
+    messages.insert(0, new_message);
     //add new log
 
     // Creating a client
@@ -155,7 +154,7 @@ async fn get_answer_stream(
     // Acquiring a streamed response
     // Note, that the `futures_util` crate is required for most
     // stream related utility methods
-    let mut stream = conversation.send_message_streaming(message).await?;
+    let stream = conversation.send_message_streaming(message).await?;
     println!("Stream with ChatGPT is established successfully");
 
     Ok(stream)
