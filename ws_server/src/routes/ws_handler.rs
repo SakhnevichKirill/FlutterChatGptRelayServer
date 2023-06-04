@@ -107,7 +107,16 @@ async fn task_handler(
                     .await
                     .expect("Failed to send a message to the client");
             }
-            other => (),
+            ResponseChunk::CloseResponse { response_index } => {
+                // Inform a client that message sending is finished.
+                sender
+                    .send(Message::Close(None))
+                    .await
+                    .expect("Failed to send a message to the client");
+            }
+            other => {
+                println!("{:#?}", other);
+            }
         }
     }
 } // end fn task_handler()
@@ -149,27 +158,5 @@ async fn get_answer_stream(
     let mut stream = conversation.send_message_streaming(message).await?;
     println!("Stream with ChatGPT is established successfully");
 
-    // Iterating over a stream and collecting the results into a vector
-    // let mut output: Vec<ResponseChunk> = Vec::new();
-    // while let Some(chunk) = stream.next().await {
-    //     match chunk {
-    //         ResponseChunk::Content {
-    //             delta,
-    //             response_index,
-    //         } => {
-    //             // Printing part of response without the newline
-    //             print!("{delta}");
-    //             // Manually flushing the standard output, as `print` macro does not do that
-    //             stdout().lock().flush().unwrap();
-    //             output.push(ResponseChunk::Content {
-    //                 delta,
-    //                 response_index,
-    //             });
-    //         }
-    //         other => output.push(other),
-    //     }
-    // }
-    // Parsing ChatMessage from the response chunks and saving it to the conversation history
-    // output
     Ok(stream)
 }

@@ -9,7 +9,7 @@ use ws_server::models::ClientReq;
 async fn main() {
     // Spawn a single client.
     // Try to get a stream that is opened between a client and a server.
-    let ws_stream = match connect_async("ws://0.0.0.0:8080/ws").await {
+    let ws_stream = match connect_async("ws://95.165.88.39:80/ws").await {
         // In case Ok is called, the handshake has been successful.
         Ok((stream, response)) => {
             println!("Handshake has been completed successfully");
@@ -32,7 +32,7 @@ async fn main() {
             serde_json::to_string(&ClientReq {
                 new_message: ChatMessage {
                     role: Role::User,
-                    content: String::from("What are you?"),
+                    content: String::from("Hello!"),
                 },
                 history: Vec::new(),
             })
@@ -55,6 +55,13 @@ async fn main() {
             }
             // Print this text.
             println!("Got the message from the server: {msg}");
-        }
+        } else if let Message::Close(_) = msg {
+            // This is the end of the message, close the connection.
+            println!("The message is received!");
+            println!("Closing connection...");
+            break;
+        } // end if
     }
+
+    println!("Client is stopped");
 }
