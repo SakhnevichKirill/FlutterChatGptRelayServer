@@ -1,3 +1,4 @@
+use std::env;
 use axum::{
     extract::{
         connect_info::ConnectInfo,
@@ -8,8 +9,9 @@ use axum::{
     response::IntoResponse,
     TypedHeader,
 };
-use futures_util::{stream::SplitSink, SinkExt, StreamExt};
+use futures_util::{stream::SplitSink, SinkExt, StreamExt, Stream};
 use std::net::SocketAddr;
+use tokio::io::stdout;
 
 use crate::models::ClientReq;
 
@@ -58,7 +60,7 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
                 } = serde_json::from_str(&msg).expect("Failed to convert the passed json");
 
                 // Spawn a task that deals with this request.
-                task_handler("".to_string(), &mut sender).await;
+                task_handler(new_message, history, &mut sender).await;
             } // end Message::Text()
             // TODO: Develop a tool for dealing with other types of requests.
             _ => (),
@@ -68,9 +70,69 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
 
 // This function deals with the request for ChatGPT that require
 // a text answer.
-async fn task_handler(msg: String, sender: &mut SplitSink<WebSocket, Message>) {
+async fn task_handler(new_message: String, history: Vec<ChatMessage>, sender: &mut SplitSink<WebSocket, Message>) {
+    get_answer_stream(new_message.clone(),history);
     sender
-        .send(Message::Text(msg))
+        .send(Message::Text(new_message))
         .await
         .expect("Failed to send a message to the client");
 } // end fn task_handler()
+async fn get_answer_stream(message: String, mut messages: Vec<ChatMessage>) -> impl Stream<Item = ResponseChunk> {
+    dotenv().ok();
+    // let (message, chat_id, user_id) = parse_json(json_str).unwrap();
+    // let mut messages: Vec<ChatMessage> = serde_json::from_str(json_conversation).unwrap();
+
+
+    //remove log
+    if !messages.is_empty() {
+        messages.remove(0);
+        let new_message = ChatMessage {
+            role: Role::System,
+            content: format!("You are ChatGPT, an AI model developed by OpenAI.\
+         Answer as concisely as possible. Today is: {0}", Local::now().format("%d/%m/%Y %H:%M")),
+        };
+        messages.insert(0, new_message);
+    }
+    //add new log
+
+
+    // Creating a client
+    let key = env::var("OAI_TOKEN").unwrap();
+    let client = ChatGPT::new(key)?;
+    let mut conversation = client.new_conversation();
+    if !messages.is_empty() {
+        conversation.history = messages;
+    }
+
+
+    // Acquiring a streamed response
+    // Note, that the `futures_util` crate is required for most
+    // stream related utility methods
+    let mut stream = conversation
+        .send_message_streaming(message)
+        .await?;
+
+    // Iterating over a stream and collecting the results into a vector
+    // let mut output: Vec<ResponseChunk> = Vec::new();
+    // while let Some(chunk) = stream.next().await {
+    //     match chunk {
+    //         ResponseChunk::Content {
+    //             delta,
+    //             response_index,
+    //         } => {
+    //             // Printing part of response without the newline
+    //             print!("{delta}");
+    //             // Manually flushing the standard output, as `print` macro does not do that
+    //             stdout().lock().flush().unwrap();
+    //             output.push(ResponseChunk::Content {
+    //                 delta,
+    //                 response_index,
+    //             });
+    //         }
+    //         other => output.push(other),
+    //     }
+    // }
+    // // Parsing ChatMessage from the response chunks and saving it to the conversation history
+    // output
+    stream
+}
