@@ -10,7 +10,6 @@ use axum::{
 };
 
 use chatgpt::{prelude::*, types::Role, Result};
-use chrono::Local;
 
 use dotenvy::dotenv;
 use futures_util::{stream::SplitSink, SinkExt, Stream, StreamExt};
