@@ -9,12 +9,9 @@ use axum::{
     TypedHeader,
 };
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use std::{
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::net::SocketAddr;
 
-use crate::models::UserRequest;
+use crate::models::ClientReq;
 
 // This function gives a handshake to the client that wants to open
 // a websocket connection.
@@ -44,9 +41,6 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
     // Split receiver and producer.
     let (mut sender, mut receiver) = socket.split();
 
-    // Wrap sender in Mutex in order to share it between tasks.
-    let mut sender = Arc::new(Mutex::new(sender));
-
     // Current task.
     let mut cur_task: Option<tokio::task::JoinHandle<()>> = None;
 
@@ -58,11 +52,13 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
                 // This is a text request to ChatGPT.
 
                 // Deserialize the request.
-                let UserRequest { message } =
-                    serde_json::from_str(&msg).expect("Failed to convert the passed json");
+                let ClientReq {
+                    new_message,
+                    history,
+                } = serde_json::from_str(&msg).expect("Failed to convert the passed json");
 
                 // Spawn a task that deals with this request.
-                task_handler(message, Arc::clone(sender)).await;
+                task_handler("".to_string(), &mut sender).await;
             } // end Message::Text()
             // TODO: Develop a tool for dealing with other types of requests.
             _ => (),
@@ -72,8 +68,7 @@ async fn socket_handler(socket: WebSocket, addr: SocketAddr) {
 
 // This function deals with the request for ChatGPT that require
 // a text answer.
-async fn task_handler(msg: String, sender: Arc<Mutex<SplitSink<WebSocket, Message>>>) {
-    let sender = sender.lock().unwrap();
+async fn task_handler(msg: String, sender: &mut SplitSink<WebSocket, Message>) {
     sender
         .send(Message::Text(msg))
         .await
